@@ -106,10 +106,38 @@ func authCheck(c *gin.Context) {
 	})
 }
 
+func handleSignup(c *gin.Context) {
+	var signupData struct {
+		Email             string `json:"email"`
+		Name              string `json:"name"`
+		Password          string `json:"password"`
+		ConfirmedPassword string `json:"confirmedpassword"`
+	}
+
+	if err := c.BindJSON(&signupData); err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Invalid format of signup information"})
+		return
+	}
+
+	if signupData.Password != signupData.ConfirmedPassword {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Password and Confirmed Password doesnot match"})
+		return
+	}
+
+	newUser := User{
+		Email:    signupData.Email,
+		Name:     signupData.Name,
+		Password: signupData.Password,
+	}
+
+	users = append(users, newUser)
+}
+
 func main() {
 	router := gin.Default()
 	router.GET("api/users", getAllUsers)
 	router.POST("api/login", handleLogin)
 	router.GET("api/protected", authCheck)
+	router.PUT("api/signup", handleSignup)
 	router.Run("localhost:8080")
 }
