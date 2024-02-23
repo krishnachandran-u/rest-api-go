@@ -28,6 +28,8 @@ var users = []User{
 	{Email: "emilywilliams@gmail.com", Name: "Emily Williams", Password: "emilywilliamspassword"},
 }
 
+var invalidTokens []string
+
 func getAllUsers(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, users)
 }
@@ -81,6 +83,20 @@ func authCheck(c *gin.Context) {
 
 	tokenString = strings.Replace(tokenString, "Bearer ", "", 1)
 
+	istokenStringInvalid := false
+
+	for _, invalidToken := range invalidTokens {
+		if invalidToken == tokenString {
+			istokenStringInvalid = true
+			break
+		}
+	}
+
+	if istokenStringInvalid {
+		c.IndentedJSON(http.StatusUnauthorized, gin.H{"error": "Token has be invalidated. Generate a new token"})
+		return
+	}
+
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		return jwtKey, nil
 	})
@@ -120,7 +136,7 @@ func handleSignup(c *gin.Context) {
 	}
 
 	if signupData.Password != signupData.ConfirmedPassword {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Password and Confirmed Password doesnot match"})
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Password and ConfirmedPassword doesnot match"})
 		return
 	}
 
@@ -133,11 +149,24 @@ func handleSignup(c *gin.Context) {
 	users = append(users, newUser)
 }
 
+func handleLogout(c *gin.Context) {
+	tokenString := c.GetHeader("Authorization")
+	if tokenString == "" {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Empty jwt token"})
+		return
+	}
+
+	tokenString = strings.Replace(tokenString, "Bearer ", "", 1)
+
+	invalidTokens = append(invalidTokens, tokenString)
+}
+
 func main() {
 	router := gin.Default()
 	router.GET("api/users", getAllUsers)
 	router.POST("api/login", handleLogin)
-	router.GET("api/protected", authCheck)
+	router.POST("api/protected", authCheck)
 	router.PUT("api/signup", handleSignup)
+	router.POST("api/logout", handleLogout)
 	router.Run("localhost:8080")
 }
