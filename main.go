@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -68,9 +69,47 @@ func handleLogin(c *gin.Context) {
 	}
 }
 
+func authCheck(c *gin.Context) {
+	tokenString := c.GetHeader("Authorization")
+	if tokenString == "" {
+		c.IndentedJSON(http.StatusUnauthorized, gin.H{
+			"error":       "User unauthorized: Empty jwt token detected",
+			"tokenString": tokenString,
+		})
+		return
+	}
+
+	tokenString = strings.Replace(tokenString, "Bearer ", "", 1)
+
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		return jwtKey, nil
+	})
+
+	if err != nil {
+		c.IndentedJSON(http.StatusUnauthorized, gin.H{
+			"error":       "User unauthorised: Couldn't parse the jwt token",
+			"token":       token,
+			"tokenString": tokenString,
+		})
+		return
+	}
+
+	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		c.IndentedJSON(http.StatusOK, gin.H{"email": claims.Email})
+		return
+	}
+
+	c.IndentedJSON(http.StatusUnauthorized, gin.H{
+		"error":       "User unauthorised: Invalid jwt token",
+		"token":       token,
+		"tokenString": tokenString,
+	})
+}
+
 func main() {
 	router := gin.Default()
 	router.GET("api/users", getAllUsers)
 	router.POST("api/login", handleLogin)
+	router.GET("api/protected", authCheck)
 	router.Run("localhost:8080")
 }
